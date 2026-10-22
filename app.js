@@ -24,9 +24,45 @@ function sourceLink(name,c){const q=encodeURIComponent([c.name,c.localId,c.setNa
  if(name==='Cardmarket')return 'https://www.cardmarket.com/de/Pokemon/Products/Search?searchString='+q;
  if(name==='eBay')return 'https://www.ebay.de/sch/i.html?_nkw='+q+'&LH_Sold=1&LH_Complete=1';
  return 'https://www.psacard.com/auctionprices';}
-function showAnalysis(c){analyzedCard=c;$('analysis').classList.remove('hidden');$('selectedCard').textContent=c.name+' · '+(c.localId||c.id)+' · '+c.language.toUpperCase();const root=$('sources');root.replaceChildren();
+async function showAnalysis(c){analyzedCard=c;$('analysis').classList.remove('hidden');$('selectedCard').textContent=c.name+' · '+(c.localId||c.id)+' · '+c.language.toUpperCase();const root=$('sources');root.replaceChildren();
  const descriptions=[['Cardmarket','Europäische Angebote / Preistrend','Angebotspreise sind nicht automatisch erzielte Verkaufspreise.'],['eBay','Abgeschlossene Verkäufe','Verkaufte Angebote nach Kartennummer, Sprache und Zustand überprüfen.'],['PSA','Graded-Verkäufe nach Note','PSA 8, PSA 9 und PSA 10 getrennt prüfen; gleiche Kartenvariante wählen.']];
  descriptions.forEach(([name,kind,note])=>{const box=document.createElement('div');box.className='sourcebox';const h=document.createElement('h3');h.textContent=name;const sub=document.createElement('p');sub.textContent=kind;const status=document.createElement('p');status.className='status';status.textContent='Kein verifizierter Live-Preis angebunden';const info=document.createElement('p');info.className='muted';info.textContent=note;const a=document.createElement('a');a.href=sourceLink(name,c);a.target='_blank';a.rel='noopener noreferrer';a.textContent='Quelle öffnen ↗';box.append(h,sub,status,info,a);root.append(box)});
+ await loadCardmarketPrice(c,root);
  $('gradeResults').replaceChildren();$('analysis').scrollIntoView({behavior:'smooth',block:'start'});}
 for(const grade of [8,9,10]){const label=document.createElement('label');label.textContent='PSA '+grade+' – überprüfter Verkaufspreis (€)';const input=document.createElement('input');input.id='psa'+grade;input.type='number';input.min='0';input.step='0.01';input.placeholder='Optional';$('gradeInputs').append(label,input)}
 $('calculate').onclick=()=>{const raw=$('rawValue').value,cost=$('gradingCost').value,holder=$('gradeResults');holder.replaceChildren();if(raw===''||cost===''||+raw<0||+cost<0){holder.textContent='Bitte Ungraded-Wert und Gesamtkosten eingeben.';return}let any=false;for(const grade of [8,9,10]){const v=$('psa'+grade).value;if(v===''||+v<0)continue;any=true;const diff=Number(v)-Number(raw)-Number(cost);const d=document.createElement('div');d.className='outcome';d.textContent='PSA '+grade+': '+eur(Number(v))+' Verkauf – '+eur(Number(raw))+' Rohwert – '+eur(Number(cost))+' Kosten = '+(diff>=0?'+':'')+eur(diff)+' (vor etwaigen Verkaufsgebühren/Steuern)';holder.append(d)}if(!any)holder.textContent='Trage mindestens einen PSA-Verkaufspreis ein.'};
+
+// Cardmarket market feed supplied by TCGdex, not an official Cardmarket API.
+async function loadCardmarketPrice(c, root){
+ const box=[...root.children].find(el=>el.querySelector('h3')?.textContent==='Cardmarket');
+ if(!box)return;
+ const status=box.querySelector('.status');
+ status.textContent='Cardmarket-Marktdaten werden geladen …';
+ try{
+  const lang=encodeURIComponent(c.language||'en');
+  const id=encodeURIComponent(c.id||'');
+  if(!id)throw Error('Karten-ID fehlt');
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),12000);
+  let response;
+  try{response=await fetch(`https://api.tcgdex.net/v2/${lang}/cards/${id}`,{signal:controller.signal,cache:'no-store'});}finally{clearTimeout(timeout)}
+  if(!response.ok)throw Error('Preisdaten nicht erreichbar');
+  const data=await response.json();
+  // Never mix prices from different variants. If per-variant prices exist,
+  // present them individually, and don't claim a uniquely identified printing.
+  const variants=Array.isArray(data.variants_detailed)?data.variants_detailed.filter(v=>v?.pricing?.cardmarket):[];
+  const candidates=variants.length?variants.map(v=>({label:[v.type,v.subtype,v.foil].filter(Boolean).join(' / ')||'Variante',price:v.pricing.cardmarket})):data.pricing?.cardmarket?[{label:'Karten-Zuordnung (Variante prüfen)',price:data.pricing.cardmarket}]:[];
+  if(!candidates.length){status.textContent='Für diese Karte derzeit keine Cardmarket-Preisdaten im TCGdex-Feed.';return}
+  status.replaceChildren();
+  const fmt=n=>typeof n==='number'&&Number.isFinite(n)?eur(n):'–';
+  for(const {label,price} of candidates){
+   const line=document.createElement('div');line.className='outcome';
+   line.textContent=`${label}: Trend ${fmt(price.trend)} · Ø 30 Tage ${fmt(price.avg30)} · niedrigstes Angebot ${fmt(price.low)}`;
+   status.append(line);
+  }
+  const date=candidates.map(x=>x.price.updated).find(Boolean);
+  const note=document.createElement('p');note.className='muted';
+  note.textContent=`Datenquelle: TCGdex (Cardmarket-Marktdaten), ${date?'Stand '+date:'Zeitstempel nicht verfügbar'}. Marktindikatoren, keine garantierten Verkaufspreise. Variante und Sprache prüfen.`;
+  status.append(note);
+ }catch(e){status.textContent='Cardmarket-Daten konnten nicht geladen werden. Bitte später erneut versuchen.'}
+}

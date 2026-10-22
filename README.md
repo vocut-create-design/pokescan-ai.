@@ -1,15 +1,10 @@
-# POKÉSCAN AI Beta 2.0
-
-Mobile Web-App für Pokémon-Kartensuche, lokale Sammlung und transparenten Preisvergleich.
+# POKÉSCAN AI Beta 2.1
 
 ## Neu
-- Pro gefundener oder gespeicherter Karte: **Markt & Grading**.
-- Cardmarket, eBay (verkaufte Angebote) und PSA (graded) **immer getrennt**, jeweils mit direktem Recherchelink.
-- **Keine erfundenen Live-Preise**: Ohne offiziell angebundene und berechtigte Datenquelle wird ausdrücklich „Kein verifizierter Live-Preis angebunden“ angezeigt.
-- Manueller Grading-Szenarienrechner mit PSA 8/9/10, Rohwert und Kosten.
+Cardmarket-Marktindikatoren (Trend, 30-Tage-Durchschnitt, niedrigstes Angebot) werden, sofern vorhanden, automatisch über den öffentlichen TCGdex-Feed abgerufen. Variante und Sprache prüfen. eBay-Verkäufe und PSA-Verkäufe bleiben ausdrücklich ohne automatische Preisanbindung, mit Recherchelinks und manuellem Szenarienrechner.
 
-## Deployment
-Alle sechs Dateien in das bestehende GitHub-Repository hochladen und bestehende Dateien ersetzen. GitHub Pages bleibt auf `main` / `(root)`. Browser ggf. neu laden. Sammlung im localStorage bleibt auf derselben Origin erhalten; vorher Export empfohlen.
+## Installation
+Alle sechs Dateien im Root des bestehenden GitHub-Repositories ersetzen. GitHub Pages bleibt auf `main` und `/(root)`. Vorher Sammlung als JSON exportieren.
 
-## Noch offen
-Automatisierte Preisdaten über offizielle, zugangsberechtigte APIs, tatsächliche Foto-Zustandsanalyse und belastbare PSA-Notenwahrscheinlichkeit. Nicht als bereits implementiert darstellen.
+## Grenzen
+TCGdex kann Preise falsch zuordnen oder keine Daten haben. Marktindikatoren sind keine abgeschlossenen Verkäufe. Für eBay Marketplace Insights ist gesonderter, eingeschränkter Zugang nötig. Keine automatische PSA-Foto-Zustandsbewertung implementiert. Kein API-Schlüssel im Browser speichern.
