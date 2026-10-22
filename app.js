@@ -20,46 +20,49 @@ async function loadOcrLibrary(){
  if(!window.__pokescanOcrPromise){window.__pokescanOcrPromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';script.onload=()=>window.Tesseract?resolve(window.Tesseract):reject(Error('OCR-Bibliothek fehlt'));script.onerror=()=>reject(Error('OCR-Bibliothek konnte nicht geladen werden'));document.head.append(script)}).catch(e=>{window.__pokescanOcrPromise=null;throw e})}
  return window.__pokescanOcrPromise;
 }
+// Analyze title and collector-number zones separately, not arbitrary card body text.
+async function cropPhoto(file, zone){
+ const bitmap=await createImageBitmap(file);const w=bitmap.width,h=bitmap.height;
+ // Camera images may contain background: center a portrait card region before cropping.
+ const cw=Math.min(w,h*.72),ch=Math.min(h,w*1.6),left=(w-cw)/2,top=(h-ch)/2;
+ let y=zone==='title'?.035:.82, height=zone==='title'?.22:.17;
+ const canvas=document.createElement('canvas');canvas.width=1100;canvas.height=Math.round(1100*ch*height/cw);
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.filter='contrast(1.65) grayscale(1)';ctx.drawImage(bitmap,left,top+ch*y,cw,ch*height,0,0,canvas.width,canvas.height);
+ bitmap.close?.();return canvas;
+}
+function titleCandidates(raw){
+ return String(raw||'').split(/\n/).map(normalizeScanText).map(x=>x.replace(/\b\d+\s*(?:KP|HP|PV)\b.*$/i,'').replace(/[^\p{L}\p{M} .:'’\-]/gu,'').trim()).filter(x=>x.length>=4&&x.length<=27&&x.split(' ').length<=3&&!/^(phase|stufe|basis|stage|basic|pokemon|pokémon|trainer|energie|energy|entwicklung|evolves|level|lvl|illustrator|attack|ability|weakness|resistance|retreat|edition)/i.test(x)).slice(0,4)
+}
 async function loadImage(file){
  if(!file||!file.type.startsWith('image/'))return;
  const generation=++scanGeneration;const reader=new FileReader();reader.onload=()=>{if(generation===scanGeneration){photo=reader.result;$('preview').src=photo;$('preview').style.display='block'}};reader.readAsDataURL(file);
- $('ocrStatus').textContent='Foto wird automatisch analysiert … (beim ersten Mal kann der OCR-Download etwas dauern)';
- $('matches').replaceChildren();$('results').classList.add('hidden');
+ $('ocrStatus').textContent='Analysiere Kartenkopf und Kartennummer …';$('matches').replaceChildren();$('results').classList.add('hidden');
  try{
   const OCR=await loadOcrLibrary();
-  const result=await OCR.recognize(file,'eng+deu',{logger:message=>{if(generation===scanGeneration&&message.status==='recognizing text')$('ocrStatus').textContent='Fotoerkennung: '+Math.round((message.progress||0)*100)+' %'}});
+  const [top,bottom]=await Promise.all([cropPhoto(file,'title'),cropPhoto(file,'number')]);
+  const topResult=await OCR.recognize(top,'deu+eng');
+  const bottomResult=await OCR.recognize(bottom,'eng+deu');
   if(generation!==scanGeneration)return;
-  const clues=extractScanClues(result.data?.text||'');
-  if(!clues.names.length&&!clues.number){$('ocrStatus').textContent='Auf dem Foto konnte kein Kartenname oder keine Kartennummer gelesen werden. Bitte schärfer fotografieren oder manuell suchen.';return}
-  $('ocrStatus').textContent='Kartentext erkannt. Suche passende Karten …';
-  await identifyFromPhoto(clues,generation);
- }catch(e){if(generation===scanGeneration)$('ocrStatus').textContent='Fotoerkennung nicht verfügbar ('+(e.message||'Fehler')+'). Bitte Internetverbindung prüfen oder manuell suchen.'}
+  const names=titleCandidates(topResult.data?.text);
+  const numberMatch=(bottomResult.data?.text||'').match(/\b(\d{1,3})\s*[/／]\s*(\d{2,3})\b/);
+  const clues={names,number:numberMatch?String(Number(numberMatch[1])):null,total:numberMatch?Number(numberMatch[2]):null};
+  if(!names.length){$('ocrStatus').textContent='Der Kartenname konnte nicht sicher gelesen werden. Bitte Karte gerade, groß und scharf fotografieren. Keine falschen Treffer werden angezeigt.';return}
+  $('ocrStatus').textContent='Vergleiche Kartenname mit dem Katalog …';await identifyFromPhoto(clues,generation);
+ }catch(e){if(generation===scanGeneration)$('ocrStatus').textContent='Fotoanalyse nicht verfügbar: '+(e.message||'Fehler')+'. Du kannst die manuelle Suche verwenden.'}
 }
+function normalizedName(s){return String(s||'').toLocaleLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^\p{L}\p{N}]/gu,'')}
 async function identifyFromPhoto(clues,generation){
  const selected=$('language').value;const languages=selected?[selected]:['de','en','fr','it','es'];
- let matches=[];
- // Search by name rather than downloading every card in every language.
- const candidates=clues.names.slice(0,4);
- const jobs=[];for(const lang of languages)for(const name of candidates)jobs.push(lookup(lang,name).catch(()=>[]));
- const responses=await Promise.all(jobs);
- if(generation!==scanGeneration)return;
- matches=responses.flat();
- // If OCR finds a collector number, narrow the results; never treat number alone as unique.
- if(clues.number){const narrowed=matches.filter(c=>String(Number(c.localId))===clues.number);if(narrowed.length)matches=narrowed}
- const scored=matches.map(c=>{
-  const name=(c.name||'').toLocaleLowerCase();let score=0;
-  if(clues.names.some(n=>n.toLocaleLowerCase()===name))score+=70;
-  else if(clues.names.some(n=>n.toLocaleLowerCase().includes(name)||name.includes(n.toLocaleLowerCase())))score+=35;
-  if(clues.number&&String(Number(c.localId))===clues.number)score+=50;
-  if(clues.total&&c.id&&String(c.id).includes('-'))score+=0;
-  return {...c,score};
- }).sort((a,b)=>b.score-a.score);
- const unique=[...new Map(scored.map(c=>[c.language+':'+c.id,c])).values()].slice(0,15);
- const holder=$('matches');holder.replaceChildren();$('results').classList.remove('hidden');
- if(!unique.length){$('ocrStatus').textContent='Text erkannt, aber keine sichere Karte gefunden. Versuche ein helleres, gerades Foto oder nutze die manuelle Suche.';holder.textContent='Keine passenden Katalogkarten gefunden.';return}
- $('ocrStatus').textContent=unique.length===1?'1 möglicher Treffer gefunden. Bitte Set, Nummer und Variante prüfen.':unique.length+' mögliche Treffer gefunden – wähle die richtige Karte anhand von Bild, Set und Nummer.';
- unique.forEach(c=>holder.append(cardNode(c)));
- $('results').scrollIntoView({behavior:'smooth',block:'start'});
+ const jobs=[];for(const lang of languages)for(const name of clues.names.slice(0,3))jobs.push(lookup(lang,name).catch(()=>[]));
+ const responses=await Promise.all(jobs);if(generation!==scanGeneration)return;
+ // Strictly require name agreement. A collector number is not sufficient.
+ let matches=responses.flat().filter(c=>clues.names.some(n=>{const a=normalizedName(n),b=normalizedName(c.name);return a.length>=4&&b.length>=4&&(a===b||(a.length>=6&&b.includes(a))||(b.length>=6&&a.includes(b)))}));
+ if(clues.number){const numbered=matches.filter(c=>String(Number(c.localId))===clues.number);if(numbered.length)matches=numbered}
+ const unique=[...new Map(matches.map(c=>[c.language+':'+c.id,c])).values()].slice(0,12);
+ const holder=$('matches');holder.replaceChildren();
+ if(!unique.length){$('ocrStatus').textContent='Keine zuverlässige Übereinstimmung. Die App zeigt bewusst keine fremden Karten an. Bitte Karte näher und ohne Spiegelung fotografieren.';return}
+ $('results').classList.remove('hidden');$('ocrStatus').textContent=unique.length+' passende Karten gefunden – Set und Nummer bitte bestätigen.';
+ unique.forEach(c=>holder.append(cardNode(c)));$('results').scrollIntoView({behavior:'smooth',block:'start'});
 }
 $('camera').onchange=e=>loadImage(e.target.files[0]);$('upload').onchange=e=>loadImage(e.target.files[0]);
 const langs=['en','de','fr','it','es','ja','ko','zh'];

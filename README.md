@@ -1,7 +1,5 @@
-# POKÉSCAN AI – Beta 2.2
+# POKÉSCAN AI Beta 2.3
 
-Mobile GitHub Pages app. Foto hochladen oder aufnehmen → lokale OCR über Tesseract.js (wird von jsDelivr geladen, englische/deutsche Sprachmodelle) → TCGdex-Suche → Kandidaten mit Set und Nummer bestätigen → Sammlung → Markt & Grading.
+Verbesserte, konservative Foto-Texterkennung: Titel- und Nummernzone werden separat analysiert. Falsche Suchergebnisse werden durch strikten Namensabgleich unterdrückt. Keine vollwertige visuelle KI-Erkennung und keine Garantie für automatische Identifikation aller Karten. Bei unleserlichem Titel bitte neues Foto aufnehmen. Markt-/Grading-Funktionen und Sammlung bleiben erhalten.
 
-**Grenzen:** OCR erkennt Text, nicht die Karte per visuellem Bildvergleich. Japanische/koreanische/chinesische Texte werden derzeit nicht per OCR erkannt. Holo/Reverse/First Edition nicht zuverlässig unterscheidbar. Kein serverseitiger Bild-Upload. TCGdex liefert Marktdaten für manche Karten; eBay- und PSA-Livepreise sind noch nicht integriert.
-
-GitHub Pages: alle sechs Dateien ins Repo-Root auf `main` hochladen. Vorher Sammlung exportieren.
+Upload: Sechs Dateien in GitHub-Repository hochladen und bestehende ersetzen. Vorher Sammlung exportieren.
