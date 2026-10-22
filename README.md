@@ -1,10 +1,7 @@
-# POKÉSCAN AI Beta 2.1
+# POKÉSCAN AI – Beta 2.2
 
-## Neu
-Cardmarket-Marktindikatoren (Trend, 30-Tage-Durchschnitt, niedrigstes Angebot) werden, sofern vorhanden, automatisch über den öffentlichen TCGdex-Feed abgerufen. Variante und Sprache prüfen. eBay-Verkäufe und PSA-Verkäufe bleiben ausdrücklich ohne automatische Preisanbindung, mit Recherchelinks und manuellem Szenarienrechner.
+Mobile GitHub Pages app. Foto hochladen oder aufnehmen → lokale OCR über Tesseract.js (wird von jsDelivr geladen, englische/deutsche Sprachmodelle) → TCGdex-Suche → Kandidaten mit Set und Nummer bestätigen → Sammlung → Markt & Grading.
 
-## Installation
-Alle sechs Dateien im Root des bestehenden GitHub-Repositories ersetzen. GitHub Pages bleibt auf `main` und `/(root)`. Vorher Sammlung als JSON exportieren.
+**Grenzen:** OCR erkennt Text, nicht die Karte per visuellem Bildvergleich. Japanische/koreanische/chinesische Texte werden derzeit nicht per OCR erkannt. Holo/Reverse/First Edition nicht zuverlässig unterscheidbar. Kein serverseitiger Bild-Upload. TCGdex liefert Marktdaten für manche Karten; eBay- und PSA-Livepreise sind noch nicht integriert.
 
-## Grenzen
-TCGdex kann Preise falsch zuordnen oder keine Daten haben. Marktindikatoren sind keine abgeschlossenen Verkäufe. Für eBay Marketplace Insights ist gesonderter, eingeschränkter Zugang nötig. Keine automatische PSA-Foto-Zustandsbewertung implementiert. Kein API-Schlüssel im Browser speichern.
+GitHub Pages: alle sechs Dateien ins Repo-Root auf `main` hochladen. Vorher Sammlung exportieren.
