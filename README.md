@@ -1,20 +1,15 @@
-# POKÉSCAN AI – Beta 1.0
+# POKÉSCAN AI Beta 2.0
 
-Mobile, installierbare Web-App ohne eigenen Server.
+Mobile Web-App für Pokémon-Kartensuche, lokale Sammlung und transparenten Preisvergleich.
 
-## Starten
-Die Dateien auf GitHub Pages oder einen anderen HTTPS-Webhost hochladen. Anschließend die veröffentlichte URL am Smartphone öffnen und zum Home-Bildschirm hinzufügen. Lokal kann man mit `python -m http.server 8000` testen (localhost).
+## Neu
+- Pro gefundener oder gespeicherter Karte: **Markt & Grading**.
+- Cardmarket, eBay (verkaufte Angebote) und PSA (graded) **immer getrennt**, jeweils mit direktem Recherchelink.
+- **Keine erfundenen Live-Preise**: Ohne offiziell angebundene und berechtigte Datenquelle wird ausdrücklich „Kein verifizierter Live-Preis angebunden“ angezeigt.
+- Manueller Grading-Szenarienrechner mit PSA 8/9/10, Rohwert und Kosten.
 
-## Enthalten
-- Kamera und Foto-Upload
-- Optionale browserseitige OCR der Kartennummer, sofern TextDetector verfügbar ist
-- Katalogsuche via TCGdex in 8 Sprachen; Treffer müssen manuell verifiziert werden
-- Lokale Sammlung mit JSON-Import/Export
-- PWA mit Offline-App-Shell
+## Deployment
+Alle sechs Dateien in das bestehende GitHub-Repository hochladen und bestehende Dateien ersetzen. GitHub Pages bleibt auf `main` / `(root)`. Browser ggf. neu laden. Sammlung im localStorage bleibt auf derselben Origin erhalten; vorher Export empfohlen.
 
-## Einschränkungen
-- Keine vollautomatische Bildidentifikation auf allen Geräten; manuelle Eingabe ist der verlässliche Fallback.
-- Keine Live-Marktwerte und keine Grading-Prognose in Beta 1.0.
-- Für die Kartensuche ist Internet erforderlich.
-- Fotos werden nur lokal angezeigt und nicht dauerhaft gespeichert.
-- Kartennummernsuche liefert potenziell viele Treffer, da eine Nummer in mehreren Sets vorkommen kann.
+## Noch offen
+Automatisierte Preisdaten über offizielle, zugangsberechtigte APIs, tatsächliche Foto-Zustandsanalyse und belastbare PSA-Notenwahrscheinlichkeit. Nicht als bereits implementiert darstellen.
