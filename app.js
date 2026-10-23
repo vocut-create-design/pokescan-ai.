@@ -21,14 +21,13 @@ async function loadOcrLibrary(){
  return window.__pokescanOcrPromise;
 }
 // Analyze title and collector-number zones separately, not arbitrary card body text.
-async function cropPhoto(file, zone){
+// Multi-zone scan: card position varies between photos. Scan narrow bands at
+// different heights rather than assuming the card fills the entire image.
+async function cropPhoto(file, zone, band=0){
  const bitmap=await createImageBitmap(file);const w=bitmap.width,h=bitmap.height;
- // Camera images may contain background: center a portrait card region before cropping.
- const cw=Math.min(w,h*.72),ch=Math.min(h,w*1.6),left=(w-cw)/2,top=(h-ch)/2;
- let y=zone==='title'?.035:.82, height=zone==='title'?.22:.17;
- const canvas=document.createElement('canvas');canvas.width=1100;canvas.height=Math.round(1100*ch*height/cw);
- const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.filter='contrast(1.65) grayscale(1)';ctx.drawImage(bitmap,left,top+ch*y,cw,ch*height,0,0,canvas.width,canvas.height);
- bitmap.close?.();return canvas;
+ const bands=zone==='title'?[[.18,.08,.82,.17],[.18,.13,.82,.22],[.18,.17,.82,.26]]:[[.14,.70,.66,.79],[.14,.74,.66,.83],[.14,.77,.66,.86]];
+ const [x1,y1,x2,y2]=bands[band];const canvas=document.createElement('canvas');canvas.width=1250;canvas.height=Math.round(1250*h*(y2-y1)/(w*(x2-x1)));
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.filter='grayscale(1) contrast(1.8)';ctx.drawImage(bitmap,w*x1,h*y1,w*(x2-x1),h*(y2-y1),0,0,canvas.width,canvas.height);bitmap.close?.();return canvas;
 }
 function titleCandidates(raw){
  return String(raw||'').split(/\n/).map(normalizeScanText).map(x=>x.replace(/\b\d+\s*(?:KP|HP|PV)\b.*$/i,'').replace(/[^\p{L}\p{M} .:'’\-]/gu,'').trim()).filter(x=>x.length>=4&&x.length<=27&&x.split(' ').length<=3&&!/^(phase|stufe|basis|stage|basic|pokemon|pokémon|trainer|energie|energy|entwicklung|evolves|level|lvl|illustrator|attack|ability|weakness|resistance|retreat|edition)/i.test(x)).slice(0,4)
@@ -39,13 +38,21 @@ async function loadImage(file){
  $('ocrStatus').textContent='Analysiere Kartenkopf und Kartennummer …';$('matches').replaceChildren();$('results').classList.add('hidden');
  try{
   const OCR=await loadOcrLibrary();
-  const [top,bottom]=await Promise.all([cropPhoto(file,'title'),cropPhoto(file,'number')]);
-  const topResult=await OCR.recognize(top,'deu+eng');
-  const bottomResult=await OCR.recognize(bottom,'eng+deu');
+  const topTexts=[],bottomTexts=[];
+  for(let i=0;i<3;i++){
+   const top=await cropPhoto(file,'title',i);
+   const r=await OCR.recognize(top,'deu+eng');topTexts.push(r.data?.text||'');
+  }
+  for(let i=0;i<3;i++){
+   const bottom=await cropPhoto(file,'number',i);
+   const r=await OCR.recognize(bottom,'eng+deu');bottomTexts.push(r.data?.text||'');
+  }
   if(generation!==scanGeneration)return;
-  const names=titleCandidates(topResult.data?.text);
-  const numberMatch=(bottomResult.data?.text||'').match(/\b(\d{1,3})\s*[/／]\s*(\d{2,3})\b/);
-  const clues={names,number:numberMatch?String(Number(numberMatch[1])):null,total:numberMatch?Number(numberMatch[2]):null};
+  const names=[...new Set(topTexts.flatMap(titleCandidates))].slice(0,10);
+  const numberMatches=bottomTexts.join(' ').match(/\b(\d{1,3})\s*[/／]\s*(\d{2,3})\b/g)||[];
+  const parsed=numberMatches.map(x=>x.match(/(\d{1,3})\s*[/／]\s*(\d{2,3})/)).filter(Boolean);
+  const best=parsed.find(x=>Number(x[2])>=Number(x[1]));
+  const clues={names,number:best?String(Number(best[1])):null,total:best?Number(best[2]):null};
   if(!names.length){$('ocrStatus').textContent='Der Kartenname konnte nicht sicher gelesen werden. Bitte Karte gerade, groß und scharf fotografieren. Keine falschen Treffer werden angezeigt.';return}
   $('ocrStatus').textContent='Vergleiche Kartenname mit dem Katalog …';await identifyFromPhoto(clues,generation);
  }catch(e){if(generation===scanGeneration)$('ocrStatus').textContent='Fotoanalyse nicht verfügbar: '+(e.message||'Fehler')+'. Du kannst die manuelle Suche verwenden.'}
@@ -53,11 +60,11 @@ async function loadImage(file){
 function normalizedName(s){return String(s||'').toLocaleLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^\p{L}\p{N}]/gu,'')}
 async function identifyFromPhoto(clues,generation){
  const selected=$('language').value;const languages=selected?[selected]:['de','en','fr','it','es'];
- const jobs=[];for(const lang of languages)for(const name of clues.names.slice(0,3))jobs.push(lookup(lang,name).catch(()=>[]));
+ const jobs=[];for(const lang of languages)for(const name of clues.names.slice(0,10))jobs.push(lookup(lang,name).catch(()=>[]));
  const responses=await Promise.all(jobs);if(generation!==scanGeneration)return;
  // Strictly require name agreement. A collector number is not sufficient.
  let matches=responses.flat().filter(c=>clues.names.some(n=>{const a=normalizedName(n),b=normalizedName(c.name);return a.length>=4&&b.length>=4&&(a===b||(a.length>=6&&b.includes(a))||(b.length>=6&&a.includes(b)))}));
- if(clues.number){const numbered=matches.filter(c=>String(Number(c.localId))===clues.number);if(numbered.length)matches=numbered}
+ if(clues.number){matches=matches.filter(c=>String(Number(c.localId))===clues.number)}
  const unique=[...new Map(matches.map(c=>[c.language+':'+c.id,c])).values()].slice(0,12);
  const holder=$('matches');holder.replaceChildren();
  if(!unique.length){$('ocrStatus').textContent='Keine zuverlässige Übereinstimmung. Die App zeigt bewusst keine fremden Karten an. Bitte Karte näher und ohne Spiegelung fotografieren.';return}
